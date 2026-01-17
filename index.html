@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Salesforce PD1 认证题库</title>
+    <title>Salesforce PD1 认证题库 (加密版)</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
     <style>
         :root { --primary: #0070d2; --bg: #f4f6f9; --hover-bg: #f0f5fc; }
@@ -12,6 +12,25 @@
         /* 容器 */
         .container { background: white; width: 100%; max-width: 900px; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-height: 500px; }
         .hidden { display: none !important; }
+
+        /* --- 新增：授权登录层样式 --- */
+        #auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #f4f6f9; z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .auth-box {
+            background: white; padding: 40px; border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center;
+            width: 300px;
+        }
+        .auth-input {
+            width: 100%; padding: 12px; margin: 20px 0;
+            border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box;
+            font-size: 16px; outline: none; transition: 0.3s;
+        }
+        .auth-input:focus { border-color: var(--primary); }
+        /* ------------------------- */
 
         /* 首页布局 */
         .home-layout { text-align: center; }
@@ -23,7 +42,7 @@
         /* 答题页头部 */
         .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; color: #666; font-size: 14px; }
         .question-badge { display: inline-block; background: #eef4ff; color: #0070d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; font-weight: bold; }
-        .multi-badge { background: #fff0db; color: #b97406; } /* 多选题标签颜色 */
+        .multi-badge { background: #fff0db; color: #b97406; }
 
         /* 题目文本 */
         .question-content h3 { margin-top: 0; line-height: 1.5; color: #222; }
@@ -31,14 +50,10 @@
         /* 选项样式 */
         .option-item { display: block; width: 100%; text-align: left; padding: 15px; margin: 12px 0; border: 2px solid #e9ecef; background: #f8f9fb; border-radius: 6px; cursor: pointer; transition: 0.1s; position: relative; font-family: "Segoe UI", sans-serif; }
         .option-item:hover { background: var(--hover-bg); border-color: #d8dde6; }
-        
-        /* 选中状态 (提交前) */
         .option-item.selected { border-color: var(--primary); background-color: #eef6ff; box-shadow: 0 0 0 1px var(--primary) inset; }
-
-        /* 结果状态 (提交后) */
-        .option-item.correct { background: #e6ffed; border-color: #2e844a; color: #2e844a; opacity: 1 !important; } /* 正确且选中 */
-        .option-item.missed { border: 2px dashed #2e844a; background: #f0fff4; opacity: 0.7; } /* 正确但没选 */
-        .option-item.wrong { background: #fdd; border-color: #c23934; color: #c23934; } /* 选错了 */
+        .option-item.correct { background: #e6ffed; border-color: #2e844a; color: #2e844a; opacity: 1 !important; }
+        .option-item.missed { border: 2px dashed #2e844a; background: #f0fff4; opacity: 0.7; }
+        .option-item.wrong { background: #fdd; border-color: #c23934; color: #c23934; }
         .option-item.disabled { pointer-events: none; }
 
         /* 底部按钮 */
@@ -58,7 +73,17 @@
 </head>
 <body>
 
-<div class="container">
+<div id="auth-overlay">
+    <div class="auth-box">
+        <h2 style="color:var(--primary); margin-top:0;">🔒 访问受限</h2>
+        <p style="color:#666; font-size:14px;">请输入授权码访问题库</p>
+        <input type="password" id="auth-input" class="auth-input" placeholder="输入密码..." onkeyup="if(event.key==='Enter') checkAuth()">
+        <button class="action-btn submit-btn" onclick="checkAuth()">解锁进入</button>
+        <p id="auth-error" style="color:#c23934; font-size:13px; margin-top:10px; display:none;">❌ 授权码错误</p>
+    </div>
+</div>
+
+<div id="main-app" class="container hidden">
     <div id="home-screen" class="home-layout">
         <div class="hero-section">
             <h1>Salesforce PD1 认证题库</h1>
@@ -76,11 +101,8 @@
 
         <div id="quiz-body">
             <div id="question-type-badge"></div>
-            
             <div id="question-text" class="question-content"></div>
-            
             <div id="options-list"></div>
-            
             <button id="submit-btn" class="action-btn submit-btn hidden" onclick="submitMultiAnswer()">Submit Answer</button>
         </div>
 
@@ -96,17 +118,49 @@
 <script src="questions.js"></script>
 
 <script>
+    // ==========================================
+    // 🔐 1. 设置你的授权码 (在这里修改密码)
+    // ==========================================
+    const SECRET_CODE = "888888"; 
+    // ==========================================
+
+    // 授权逻辑
+    function checkAuth() {
+        const input = document.getElementById('auth-input').value;
+        const errorMsg = document.getElementById('auth-error');
+        
+        if (input === SECRET_CODE) {
+            // 密码正确：隐藏遮罩，显示主界面，并保存状态
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            localStorage.setItem('pd1_auth_status', 'passed'); // 记住登录状态
+        } else {
+            errorMsg.style.display = 'block';
+            document.getElementById('auth-input').value = '';
+        }
+    }
+
+    // 页面加载时检查是否已经登录过
+    window.onload = function() {
+        const authStatus = localStorage.getItem('pd1_auth_status');
+        if (authStatus === 'passed') {
+            // 如果之前登录过，直接放行
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+        }
+        init(); // 初始化原来的题库逻辑
+    }
+
+    // 原有逻辑保持不变
     const RANGE_SIZE = 50;
     const db = window.ALL_QUESTIONS || [];
     
-    // 状态管理
     let currentQueue = [];
     let currentIndex = 0;
     let isMultiSelect = false;
-    let currentSelections = new Set(); // 存储用户选项
+    let currentSelections = new Set();
     let hasAnswered = false;
 
-    // DOM 元素引用
     const els = {
         home: document.getElementById('home-screen'),
         quiz: document.getElementById('quiz-screen'),
@@ -121,13 +175,11 @@
         nextBtn: document.getElementById('next-btn')
     };
 
-    // 初始化
     function init() {
         document.getElementById('total-count').innerText = db.length;
         renderRangeButtons();
     }
 
-    // 生成网格按钮
     function renderRangeButtons() {
         if(db.length === 0) return;
         let html = '';
@@ -138,7 +190,6 @@
         els.grid.innerHTML = html;
     }
 
-    // 开始练习
     function startQuiz(start, end) {
         currentQueue = db.slice(start, end);
         currentIndex = 0;
@@ -147,9 +198,7 @@
         renderQuestion();
     }
 
-    // 渲染题目 (核心逻辑)
     function renderQuestion() {
-        // 重置
         hasAnswered = false;
         currentSelections.clear();
         els.feedbackBox.classList.add('hidden');
@@ -157,28 +206,21 @@
         
         const q = currentQueue[currentIndex];
         
-        // 1. 判断是否多选
         isMultiSelect = q.correct.length > 1;
 
-        // 2. 更新头部信息
         els.progress.innerText = `Progress: ${currentIndex + 1} / ${currentQueue.length} (ID: #${q.id})`;
         els.badge.innerHTML = isMultiSelect 
             ? `<span class="question-badge multi-badge">Multiple Choice (Select ${q.correct.length})</span>` 
             : `<span class="question-badge">Single Choice</span>`;
 
-        // 3. 渲染题干 (✅ 修复：处理标题中的特殊字符)
         let safeTitle = q.title.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        // 代码块本身需要单独处理 < 符号
         const codeBlock = q.code ? `<pre><code class="language-java">${q.code.replace(/</g, '&lt;')}</code></pre>` : '';
         els.qText.innerHTML = `<h3>${q.id}. ${safeTitle}</h3>${codeBlock}`;
 
-        // 4. 渲染选项
         els.optsList.innerHTML = '';
         for (let key in q.options) {
             const btn = document.createElement('div');
             btn.className = 'option-item';
-            
-            // ✅ 修复：处理选项中的特殊字符 (如 List<String>)
             let safeOptionText = q.options[key].replace(/</g, "&lt;").replace(/>/g, "&gt;");
             
             btn.innerHTML = `<strong>${key}.</strong> ${safeOptionText}`;
@@ -187,7 +229,6 @@
             els.optsList.appendChild(btn);
         }
 
-        // 5. 显示提交按钮 (多选)
         if (isMultiSelect) {
             els.submitBtn.classList.remove('hidden');
         }
@@ -196,12 +237,10 @@
         els.nextBtn.innerText = (currentIndex === currentQueue.length - 1) ? "Finish Review 🎉" : "Next Question ➡";
     }
 
-    // 点击选项处理
     function handleOptionClick(key, btn) {
-        if (hasAnswered) return; // 已答题锁定
+        if (hasAnswered) return;
 
         if (isMultiSelect) {
-            // 多选：切换选中状态
             if (currentSelections.has(key)) {
                 currentSelections.delete(key);
                 btn.classList.remove('selected');
@@ -210,7 +249,6 @@
                 btn.classList.add('selected');
             }
         } else {
-            // 单选：直接选中并提交
             currentSelections.clear();
             currentSelections.add(key);
             btn.classList.add('selected'); 
@@ -218,46 +256,39 @@
         }
     }
 
-    // 多选提交入口
     function submitMultiAnswer() {
         if (currentSelections.size === 0) return alert("Please select an option.");
         submitAnswer();
     }
 
-    // 统一判题逻辑
     function submitAnswer() {
         hasAnswered = true;
         const q = currentQueue[currentIndex];
-        
-        // 生成用户答案字符串 (如 "BD")
         const userAns = Array.from(currentSelections).sort().join('');
         const isCorrect = (userAns === q.correct);
 
         els.submitBtn.classList.add('hidden');
 
-        // 更新选项样式
         const allOpts = els.optsList.querySelectorAll('.option-item');
         allOpts.forEach(div => {
             div.classList.add('disabled');
             const optKey = div.dataset.opt;
-
-            const isRightKey = q.correct.includes(optKey); // 是否在正确答案里
-            const isSelected = currentSelections.has(optKey); // 用户是否选了
+            const isRightKey = q.correct.includes(optKey);
+            const isSelected = currentSelections.has(optKey);
 
             if (isRightKey) {
                 if (isSelected) {
-                    div.classList.add('correct'); // 正确且选了 (绿)
+                    div.classList.add('correct');
                 } else {
-                    div.classList.add('missed'); // 正确没选 (虚线)
+                    div.classList.add('missed');
                 }
             } else {
                 if (isSelected) {
-                    div.classList.add('wrong'); // 错误且选了 (红)
+                    div.classList.add('wrong');
                 }
             }
         });
 
-        // 显示解析
         els.feedbackBox.className = ''; 
         els.feedbackBox.classList.add(isCorrect ? 'success' : 'error');
         
@@ -285,8 +316,6 @@
         els.quiz.classList.add('hidden');
         els.home.classList.remove('hidden');
     }
-
-    init();
 </script>
 </body>
 </html>
