@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce PD1 认证题库</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <style>
+        :root { --primary: #0070d2; --bg: #f4f6f9; --hover-bg: #f0f5fc; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); padding: 20px; display: flex; justify-content: center; }
+        
+        /* 容器 */
+        .container { background: white; width: 100%; max-width: 900px; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-height: 500px; }
+        .hidden { display: none !important; }
+
+        /* 首页布局 */
+        .home-layout { text-align: center; }
+        .hero-section { border-bottom: 1px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+        .range-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; margin-top: 20px; }
+        .range-btn { background: white; border: 1px solid #d8dde6; padding: 15px; border-radius: 6px; cursor: pointer; color: #0070d2; font-weight: 500; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .range-btn:hover { border-color: var(--primary); background: var(--hover-bg); transform: translateY(-2px); }
+
+        /* 答题页头部 */
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; color: #666; font-size: 14px; }
+        .question-badge { display: inline-block; background: #eef4ff; color: #0070d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 10px; font-weight: bold; }
+        .multi-badge { background: #fff0db; color: #b97406; } /* 多选题标签颜色 */
+
+        /* 题目文本 */
+        .question-content h3 { margin-top: 0; line-height: 1.5; color: #222; }
+
+        /* 选项样式 */
+        .option-item { display: block; width: 100%; text-align: left; padding: 15px; margin: 12px 0; border: 2px solid #e9ecef; background: #f8f9fb; border-radius: 6px; cursor: pointer; transition: 0.1s; position: relative; font-family: "Segoe UI", sans-serif; }
+        .option-item:hover { background: var(--hover-bg); border-color: #d8dde6; }
+        
+        /* 选中状态 (提交前) */
+        .option-item.selected { border-color: var(--primary); background-color: #eef6ff; box-shadow: 0 0 0 1px var(--primary) inset; }
+
+        /* 结果状态 (提交后) */
+        .option-item.correct { background: #e6ffed; border-color: #2e844a; color: #2e844a; opacity: 1 !important; } /* 正确且选中 */
+        .option-item.missed { border: 2px dashed #2e844a; background: #f0fff4; opacity: 0.7; } /* 正确但没选 */
+        .option-item.wrong { background: #fdd; border-color: #c23934; color: #c23934; } /* 选错了 */
+        .option-item.disabled { pointer-events: none; }
+
+        /* 底部按钮 */
+        .action-btn { width: 100%; padding: 15px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 20px; font-weight: bold; }
+        .submit-btn { background: var(--primary); color: white; }
+        .submit-btn:hover { background: #005fb2; }
+        .next-btn { background: #f1f3f5; color: #333; border: 1px solid #ddd; }
+        .next-btn:hover { background: #e9ecef; }
+
+        /* 解析区 */
+        #feedback-box { margin-top: 25px; padding: 20px; background: #f8f9fa; border-radius: 6px; border-left: 5px solid #ccc; animation: fadeIn 0.3s; }
+        #feedback-box.success { border-left-color: #2e844a; }
+        #feedback-box.error { border-left-color: #c23934; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="home-screen" class="home-layout">
+        <div class="hero-section">
+            <h1>Salesforce PD1 认证题库</h1>
+            <p>Total Questions: <strong id="total-count" style="color:var(--primary)">0</strong></p>
+        </div>
+        <div style="text-align:left; color:#555; font-weight:bold; margin-bottom:10px;">Select Range:</div>
+        <div id="range-grid" class="range-grid"></div>
+    </div>
+
+    <div id="quiz-screen" class="hidden">
+        <div class="header-bar">
+            <button onclick="goHome()" style="background:none; border:none; color:#0070d2; cursor:pointer; font-weight:bold;">⬅ Back to List</button>
+            <span id="progress-info"></span>
+        </div>
+
+        <div id="quiz-body">
+            <div id="question-type-badge"></div>
+            
+            <div id="question-text" class="question-content"></div>
+            
+            <div id="options-list"></div>
+            
+            <button id="submit-btn" class="action-btn submit-btn hidden" onclick="submitMultiAnswer()">Submit Answer</button>
+        </div>
+
+        <div id="feedback-box" class="hidden">
+            <div id="feedback-content"></div>
+            <button id="next-btn" class="action-btn next-btn" onclick="nextQuestion()">Next Question ➡</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+<script src="questions.js"></script>
+
+<script>
+    const RANGE_SIZE = 50;
+    const db = window.ALL_QUESTIONS || [];
+    
+    // 状态管理
+    let currentQueue = [];
+    let currentIndex = 0;
+    let isMultiSelect = false;
+    let currentSelections = new Set(); // 存储用户选项
+    let hasAnswered = false;
+
+    // DOM 元素引用
+    const els = {
+        home: document.getElementById('home-screen'),
+        quiz: document.getElementById('quiz-screen'),
+        grid: document.getElementById('range-grid'),
+        qText: document.getElementById('question-text'),
+        badge: document.getElementById('question-type-badge'),
+        optsList: document.getElementById('options-list'),
+        submitBtn: document.getElementById('submit-btn'),
+        feedbackBox: document.getElementById('feedback-box'),
+        feedbackContent: document.getElementById('feedback-content'),
+        progress: document.getElementById('progress-info'),
+        nextBtn: document.getElementById('next-btn')
+    };
+
+    // 初始化
+    function init() {
+        document.getElementById('total-count').innerText = db.length;
+        renderRangeButtons();
+    }
+
+    // 生成网格按钮
+    function renderRangeButtons() {
+        if(db.length === 0) return;
+        let html = '';
+        for (let i = 0; i < db.length; i += RANGE_SIZE) {
+            const end = Math.min(i + RANGE_SIZE, db.length);
+            html += `<button class="range-btn" onclick="startQuiz(${i}, ${end})">Q ${i + 1} - ${end}</button>`;
+        }
+        els.grid.innerHTML = html;
+    }
+
+    // 开始练习
+    function startQuiz(start, end) {
+        currentQueue = db.slice(start, end);
+        currentIndex = 0;
+        els.home.classList.add('hidden');
+        els.quiz.classList.remove('hidden');
+        renderQuestion();
+    }
+
+    // 渲染题目 (核心逻辑)
+    function renderQuestion() {
+        // 重置
+        hasAnswered = false;
+        currentSelections.clear();
+        els.feedbackBox.classList.add('hidden');
+        els.submitBtn.classList.add('hidden');
+        
+        const q = currentQueue[currentIndex];
+        
+        // 1. 判断是否多选
+        isMultiSelect = q.correct.length > 1;
+
+        // 2. 更新头部信息
+        els.progress.innerText = `Progress: ${currentIndex + 1} / ${currentQueue.length} (ID: #${q.id})`;
+        els.badge.innerHTML = isMultiSelect 
+            ? `<span class="question-badge multi-badge">Multiple Choice (Select ${q.correct.length})</span>` 
+            : `<span class="question-badge">Single Choice</span>`;
+
+        // 3. 渲染题干 (✅ 修复：处理标题中的特殊字符)
+        let safeTitle = q.title.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        // 代码块本身需要单独处理 < 符号
+        const codeBlock = q.code ? `<pre><code class="language-java">${q.code.replace(/</g, '&lt;')}</code></pre>` : '';
+        els.qText.innerHTML = `<h3>${q.id}. ${safeTitle}</h3>${codeBlock}`;
+
+        // 4. 渲染选项
+        els.optsList.innerHTML = '';
+        for (let key in q.options) {
+            const btn = document.createElement('div');
+            btn.className = 'option-item';
+            
+            // ✅ 修复：处理选项中的特殊字符 (如 List<String>)
+            let safeOptionText = q.options[key].replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            btn.innerHTML = `<strong>${key}.</strong> ${safeOptionText}`;
+            btn.dataset.opt = key;
+            btn.onclick = () => handleOptionClick(key, btn);
+            els.optsList.appendChild(btn);
+        }
+
+        // 5. 显示提交按钮 (多选)
+        if (isMultiSelect) {
+            els.submitBtn.classList.remove('hidden');
+        }
+
+        Prism.highlightAll();
+        els.nextBtn.innerText = (currentIndex === currentQueue.length - 1) ? "Finish Review 🎉" : "Next Question ➡";
+    }
+
+    // 点击选项处理
+    function handleOptionClick(key, btn) {
+        if (hasAnswered) return; // 已答题锁定
+
+        if (isMultiSelect) {
+            // 多选：切换选中状态
+            if (currentSelections.has(key)) {
+                currentSelections.delete(key);
+                btn.classList.remove('selected');
+            } else {
+                currentSelections.add(key);
+                btn.classList.add('selected');
+            }
+        } else {
+            // 单选：直接选中并提交
+            currentSelections.clear();
+            currentSelections.add(key);
+            btn.classList.add('selected'); 
+            submitAnswer(); 
+        }
+    }
+
+    // 多选提交入口
+    function submitMultiAnswer() {
+        if (currentSelections.size === 0) return alert("Please select an option.");
+        submitAnswer();
+    }
+
+    // 统一判题逻辑
+    function submitAnswer() {
+        hasAnswered = true;
+        const q = currentQueue[currentIndex];
+        
+        // 生成用户答案字符串 (如 "BD")
+        const userAns = Array.from(currentSelections).sort().join('');
+        const isCorrect = (userAns === q.correct);
+
+        els.submitBtn.classList.add('hidden');
+
+        // 更新选项样式
+        const allOpts = els.optsList.querySelectorAll('.option-item');
+        allOpts.forEach(div => {
+            div.classList.add('disabled');
+            const optKey = div.dataset.opt;
+
+            const isRightKey = q.correct.includes(optKey); // 是否在正确答案里
+            const isSelected = currentSelections.has(optKey); // 用户是否选了
+
+            if (isRightKey) {
+                if (isSelected) {
+                    div.classList.add('correct'); // 正确且选了 (绿)
+                } else {
+                    div.classList.add('missed'); // 正确没选 (虚线)
+                }
+            } else {
+                if (isSelected) {
+                    div.classList.add('wrong'); // 错误且选了 (红)
+                }
+            }
+        });
+
+        // 显示解析
+        els.feedbackBox.className = ''; 
+        els.feedbackBox.classList.add(isCorrect ? 'success' : 'error');
+        
+        els.feedbackContent.innerHTML = `
+            <h3 style="margin:0 0 10px 0; color:${isCorrect ? '#2e844a' : '#c23934'}">
+                ${isCorrect ? '✅ Correct!' : '❌ Incorrect'}
+            </h3>
+            <div style="font-size:14px; line-height:1.6; color:#333;">${q.explanation}</div>
+        `;
+        els.feedbackBox.classList.remove('hidden');
+    }
+
+    function nextQuestion() {
+        if (currentIndex < currentQueue.length - 1) {
+            currentIndex++;
+            renderQuestion();
+            window.scrollTo(0, 0);
+        } else {
+            alert("Set Completed! Returning to list.");
+            goHome();
+        }
+    }
+
+    function goHome() {
+        els.quiz.classList.add('hidden');
+        els.home.classList.remove('hidden');
+    }
+
+    init();
+</script>
+</body>
+</html>
